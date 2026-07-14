@@ -43,7 +43,7 @@ thresholds:
 
 news:
   max_age_hours: 36
-  max_per_query: 10
+  max_per_query: 6
   max_articles_per_ticker: 8
   snippet_chars: 400
 

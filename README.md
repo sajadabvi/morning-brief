@@ -19,7 +19,7 @@ Automated weekday portfolio research digest, fully on-device:
 
 | Job | When | What |
 |---|---|---|
-| Daily digest | 6:15 AM ET Mon–Fri | Full pipeline → email. Exits immediately on market holidays (NYSE calendar). |
+| Daily digest | 5:15 AM ET Mon–Fri | Full pipeline → email. Exits immediately on market holidays (NYSE calendar). |
 | Week ahead | 7:50 AM ET Mondays | Emails the coming week's calendar events for all holdings. |
 
 Register both jobs: `./scripts/register-openclaw-cron.sh`
@@ -35,7 +35,9 @@ uv run morning-brief status            # today's stage progress
 ```
 
 `portfolio.csv` (ticker, company, sector) is the source of truth for what gets
-tracked. Thresholds, models, calendar/email targets all live in `config.yaml`.
+tracked — copy `portfolio.csv.example` to get started. It is gitignored so
+real holdings never leave the machine. Thresholds, models, calendar/email
+targets all live in `config.yaml`.
 
 ## Architecture: bounded context by construction
 
@@ -47,8 +49,10 @@ day brings:
 ```
 1-market     quotes + significance flags          (no LLM)
 2-news       RSS fetch, dedupe, snippet-trim      (no LLM)
-3-filter     council vote PER ARTICLE             (title+snippet only, ~500 chars/call)
-4-summarize  brief PER TICKER/ASSET               (≤8 filtered articles/call)
+3-filter     council: small-model triage PER      (~500 chars/call, then one
+             ARTICLE + large-model batch verdict   bounded batch call/subject)
+4-summarize  brief PER TICKER/ASSET, skipped      (≤8 filtered articles/call)
+             when quiet
 5-calendar   event extraction PER TICKER          (feed dates + 6 headlines/call)
 6-digest     headline/closing from briefs only    (never sees raw articles)
 7-email      Mail.app AppleScript send            (no LLM)

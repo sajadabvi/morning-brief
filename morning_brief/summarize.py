@@ -68,17 +68,25 @@ def summarize_all(cfg: Config, market: dict[str, Any], filtered: dict[str, Any])
     for h in cfg.holdings:
         sector_news = filtered["per_sector"].get(h.sector, [])
         articles = filtered["per_ticker"].get(h.ticker, []) + sector_news[:3]
-        brief = write(
-            f"{h.company} ({h.ticker})",
-            _price_line_stock(market["stocks"].get(h.ticker)),
-            articles,
-        )
+        quote = market["stocks"].get(h.ticker)
+        # No material news and no significant move: nothing to write, and at
+        # 40 holdings skipping these writer calls is what keeps the run short.
+        if not articles and not (quote and quote["significant"]):
+            tickers[h.ticker] = ""
+            print(f"  {h.ticker}: quiet, skipped")
+            continue
+        brief = write(f"{h.company} ({h.ticker})", _price_line_stock(quote), articles)
         tickers[h.ticker] = brief
         print(f"  {h.ticker}: {'brief written' if brief else 'nothing notable'}")
 
     macro = {}
     for q in market["macro"]:
-        brief = write(q["name"], price_line_macro(q), filtered["macro"].get(q["name"], []))
+        articles = filtered["macro"].get(q["name"], [])
+        if not articles and not q["significant"]:
+            macro[q["name"]] = ""
+            print(f"  {q['name']}: quiet, skipped")
+            continue
+        brief = write(q["name"], price_line_macro(q), articles)
         macro[q["name"]] = brief
         print(f"  {q['name']}: {'brief written' if brief else 'nothing notable'}")
 

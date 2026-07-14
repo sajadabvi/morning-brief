@@ -38,12 +38,14 @@ def ollama_chat(cfg: Config, model: str, prompt: str, timeout: float | None = No
 
 
 def _parse_json(text: str) -> dict[str, Any] | None:
-    # Models sometimes wrap JSON in prose or code fences; extract first object.
-    m = re.search(r"\{.*?\}", text, re.DOTALL)
-    if not m:
+    # Models sometimes wrap JSON in prose or code fences; find the first '{'
+    # and let raw_decode parse the complete (possibly nested) object from there.
+    start = text.find("{")
+    if start == -1:
         return None
     try:
-        return json.loads(m.group())
+        obj, _ = json.JSONDecoder().raw_decode(text[start:])
+        return obj if isinstance(obj, dict) else None
     except json.JSONDecodeError:
         return None
 
@@ -84,17 +86,64 @@ def judge_article(cfg: Config, model: str, subject: str, article: dict[str, Any]
     }
 
 
+BATCH_JUDGE_PROMPT = """You are screening financial news for a portfolio digest about {subject}.
+
+Articles:
+{articles}
+
+For EACH article judge:
+- related: is it actually about {subject} or something that materially affects it?
+- importance: 1-5, where 1 = noise/routine, 3 = notable, 5 = major market-moving news.
+
+Answer with ONLY a JSON object, no other text:
+{{"verdicts": [{{"n": 1, "related": true/false, "importance": 1-5, "reason": "<10 words max>"}}, ...]}}"""
+
+
+def _batch_judge(cfg: Config, subject: str, articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One large-model call judging all survivors of a subject together.
+
+    The batch is already capped (triage survivors, snippets trimmed), so the
+    prompt stays a few KB regardless of the day's news volume.
+    """
+    block = "\n".join(
+        f"{i}. {a['title']} - {(a['snippet'] or '')[:200]}"
+        for i, a in enumerate(articles, start=1)
+    )
+    prompt = BATCH_JUDGE_PROMPT.format(subject=subject, articles=block)
+    try:
+        parsed = _parse_json(ollama_chat(cfg, cfg["llm"]["judge_model"], prompt))
+        verdicts = {int(v["n"]): v for v in (parsed or {}).get("verdicts", [])}
+    except Exception as e:
+        print(f"    batch judge error: {e}")
+        verdicts = {}
+    out = []
+    for i, a in enumerate(articles, start=1):
+        v = verdicts.get(i)
+        if v is None:
+            # Judge failed on this one: keep the triage assessment rather
+            # than dropping potentially material news.
+            out.append(a)
+            continue
+        if v.get("related") and int(v.get("importance", 1)) >= int(cfg["llm"]["triage_min_importance"]):
+            out.append({**a, "importance": int(v["importance"]), "why": str(v.get("reason", ""))[:80]})
+    return out
+
+
 def council_filter(cfg: Config, subject: str, articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Two-stage council vote. Returns only material articles, each annotated."""
+    """Two-stage council vote. Returns only material articles, each annotated.
+
+    Stage A: small model triages each article individually (fast).
+    Stage B: large model judges all survivors in one bounded batch call.
+    """
     llm = cfg["llm"]
     min_imp = int(llm["triage_min_importance"])
-    kept = []
+    survivors = []
     for a in articles:
         triage = judge_article(cfg, llm["triage_model"], subject, a)
-        if not (triage["related"] and triage["importance"] >= min_imp):
-            continue
-        verdict = judge_article(cfg, llm["judge_model"], subject, a)
-        if verdict["related"] and verdict["importance"] >= min_imp:
-            kept.append({**a, "importance": verdict["importance"], "why": verdict["reason"]})
-    kept.sort(key=lambda a: -a["importance"])
+        if triage["related"] and triage["importance"] >= min_imp:
+            survivors.append({**a, "importance": triage["importance"], "why": triage["reason"]})
+    if not survivors:
+        return []
+    kept = _batch_judge(cfg, subject, survivors[:8])
+    kept.sort(key=lambda a: -a.get("importance", 1))
     return kept

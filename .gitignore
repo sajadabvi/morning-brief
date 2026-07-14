@@ -1,3 +1,6 @@
+# Real holdings stay local - copy portfolio.csv.example to portfolio.csv
+portfolio.csv
+
 state/
 __pycache__/
 *.pyc
