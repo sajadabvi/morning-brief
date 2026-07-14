@@ -1,0 +1,65 @@
+# Morning Brief configuration. Everything tunable lives here - no code edits needed.
+
+timezone: America/New_York
+
+portfolio_csv: portfolio.csv
+
+email:
+  to: joeyjohns0077@gmail.com
+  subject_prefix: "Morning Brief"
+
+calendar:
+  # Name of the calendar in macOS Calendar.app to write events into.
+  # This is the synced Google calendar, so events appear on all devices.
+  name: joeyjohns0077@gmail.com
+  # Marker prepended to event titles so our events can be found and deduped.
+  marker: "[MB]"
+  # How far ahead to look for/write scheduled events (days).
+  horizon_days: 120
+
+# Macro assets tracked independently of the portfolio.
+# threshold semantics: pct = abs % change vs previous close; bp = basis points
+macro_assets:
+  - name: Gold
+    symbol: GC=F
+    kind: pct
+    threshold: 1.5
+  - name: Silver
+    symbol: SI=F
+    kind: pct
+    threshold: 1.5
+  - name: 10Y Treasury yield
+    symbol: ^TNX
+    kind: bp
+    threshold: 10
+  - name: Bitcoin
+    symbol: BTC-USD
+    kind: pct
+    threshold: 3.0
+
+thresholds:
+  # abs % move vs previous close that counts as "significant" for portfolio stocks/futures
+  stock_pct: 2.0
+
+news:
+  max_age_hours: 36
+  max_per_query: 10
+  max_articles_per_ticker: 8
+  snippet_chars: 400
+
+llm:
+  ollama_url: http://localhost:11434
+  # Council: the small model triages every article (cheap, high recall),
+  # the large model gives the final materiality verdict on survivors.
+  triage_model: gemma4:latest
+  judge_model: qwen3.5:122b
+  # Prose (per-ticker briefs, headline, closing digest)
+  writer_model: qwen3.5:122b
+  # Calendar event extraction/normalization (smallest model, per spec)
+  extract_model: gemma4:latest
+  # An article passes triage at this importance (1-5) or higher
+  triage_min_importance: 3
+  request_timeout: 300
+
+state_dir: state
+keep_runs: 14
