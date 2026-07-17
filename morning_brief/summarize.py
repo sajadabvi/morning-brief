@@ -40,7 +40,7 @@ def _price_line_stock(q: dict[str, Any] | None) -> str:
     if not q:
         return "no quote available"
     flag = " (SIGNIFICANT)" if q["significant"] else ""
-    return f"{q['pct_change']:+.2f}% vs prev close, last {q['last']}{flag}"
+    return f"{q['pct_change']:+.2f}% vs prev close, last {q['last']:,.2f}{flag}"
 
 
 def price_line_macro(q: dict[str, Any]) -> str:

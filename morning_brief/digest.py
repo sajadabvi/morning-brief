@@ -73,7 +73,7 @@ def compose_daily(cfg: Config, market: dict, summaries: dict, events_written: li
     lines.append("== Significant futures/price moves - portfolio ==")
     sig = [
         f"  {h.ticker} ({h.company}): {market['stocks'][h.ticker]['pct_change']:+.2f}% "
-        f"(last {market['stocks'][h.ticker]['last']})"
+        f"(last {market['stocks'][h.ticker]['last']:,.2f})"
         for h in cfg.holdings
         if h.ticker in market["stocks"] and market["stocks"][h.ticker]["significant"]
     ]
