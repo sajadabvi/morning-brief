@@ -55,6 +55,27 @@ def cmd_daily(args) -> int:
     return 0
 
 
+def cmd_send_pending(args) -> int:
+    """Safety net: if today's digest was composed but never emailed, send it.
+
+    Runs as a separate scheduled job after the main pipeline so a transient
+    Mail failure (or a crash between compose and send) still results in the
+    email going out, exactly once - the 7-email checkpoint guards resends.
+    """
+    cfg = load_config()
+    state = RunState(cfg.state_dir, date.today(), cfg.get("keep_runs", 14))
+    if state.has("7-email"):
+        print("Already sent today; nothing to do.")
+        return 0
+    if not state.has("6-digest"):
+        print("No composed digest for today (pipeline not finished or not run).")
+        return 0
+    mail = state.load("6-digest")
+    emailer.send_email(cfg, mail["subject"], mail["body"])
+    state.save("7-email", {"sent": True, "via": "send-pending"})
+    return 0
+
+
 def cmd_weekly(args) -> int:
     cfg = load_config()
     week = calendar_stage.upcoming_week_events(cfg)
@@ -88,6 +109,10 @@ def main() -> None:
     p_weekly = sub.add_parser("weekly", help="send the Monday week-ahead email")
     p_weekly.add_argument("--no-email", action="store_true")
     p_weekly.set_defaults(fn=cmd_weekly)
+
+    sub.add_parser(
+        "send-pending", help="send today's digest if composed but not yet emailed"
+    ).set_defaults(fn=cmd_send_pending)
 
     sub.add_parser("status", help="show today's stage progress").set_defaults(fn=cmd_status)
 

@@ -63,24 +63,26 @@ def extract_events(cfg: Config, filtered: dict[str, Any]) -> list[dict[str, str]
 
     for h in cfg.holdings:
         known = _yf_earnings_dates(h.ticker, horizon)
-        headlines = "\n".join(
-            f"- {a['title']}" for a in filtered["per_ticker"].get(h.ticker, [])[:6]
-        ) or "(none)"
-        prompt = EXTRACT_PROMPT.format(
-            company=h.company,
-            ticker=h.ticker,
-            known=json.dumps(known) if known else "(none)",
-            headlines=headlines,
-            horizon=horizon,
-        )
-        parsed = None
-        try:
-            parsed = _parse_json(ollama_chat(cfg, model, prompt))
-        except Exception as e:
-            print(f"  extract failed for {h.ticker}: {e}")
-        candidates = (parsed or {}).get("events", []) or [
-            {**k, "title": k["title"]} for k in known
-        ]
+        if known:
+            # Structured feed dates are authoritative; skip the LLM call.
+            candidates = known
+        else:
+            headlines = "\n".join(
+                f"- {a['title']}" for a in filtered["per_ticker"].get(h.ticker, [])[:6]
+            ) or "(none)"
+            prompt = EXTRACT_PROMPT.format(
+                company=h.company,
+                ticker=h.ticker,
+                known="(none)",
+                headlines=headlines,
+                horizon=horizon,
+            )
+            parsed = None
+            try:
+                parsed = _parse_json(ollama_chat(cfg, model, prompt))
+            except Exception as e:
+                print(f"  extract failed for {h.ticker}: {e}")
+            candidates = (parsed or {}).get("events", [])
 
         for ev in candidates:
             try:

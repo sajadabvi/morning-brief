@@ -45,11 +45,13 @@ class RunState:
 
 def run_stage(state: RunState, stage: str, fn):
     """Execute a stage with checkpointing: skip if already done, save on success."""
+    import time
+    ts = lambda: time.strftime("%H:%M:%S")
     if state.has(stage):
-        print(f"[{stage}] checkpoint exists, skipping")
+        print(f"{ts()} [{stage}] checkpoint exists, skipping")
         return state.load(stage)
-    print(f"[{stage}] running...")
+    print(f"{ts()} [{stage}] running...")
     result = fn()
     state.save(stage, result)
-    print(f"[{stage}] done")
+    print(f"{ts()} [{stage}] done")
     return result

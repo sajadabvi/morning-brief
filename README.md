@@ -19,7 +19,8 @@ Automated weekday portfolio research digest, fully on-device:
 
 | Job | When | What |
 |---|---|---|
-| Daily digest | 5:15 AM ET Mon–Fri | Full pipeline → email. Exits immediately on market holidays (NYSE calendar). |
+| Daily digest | 4:15 AM ET Mon–Fri | Full pipeline → email, started detached, logs to `state/cron-daily.log`. Exits immediately on market holidays (NYSE calendar). |
+| Send safety net | 7:45 AM ET Mon–Fri | `send-pending`: if the digest was composed but the email failed, resend; the 7-email checkpoint guarantees exactly-once. |
 | Week ahead | 7:50 AM ET Mondays | Emails the coming week's calendar events for all holdings. |
 
 Register both jobs: `./scripts/register-openclaw-cron.sh`
