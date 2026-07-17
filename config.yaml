@@ -5,7 +5,9 @@ timezone: America/New_York
 portfolio_csv: portfolio.csv
 
 email:
-  to: joeyjohns0077@gmail.com
+  to:
+    - joeyjohns0077@gmail.com
+    - m.s.abavisani@gmail.com
   subject_prefix: "Morning Brief"
 
 calendar:

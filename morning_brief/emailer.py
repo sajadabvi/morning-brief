@@ -27,13 +27,18 @@ def _attempt_send(script: str) -> None:
 
 def send_email(cfg: Config, subject: str, body: str) -> None:
     to = cfg["email"]["to"]
+    recipients = [to] if isinstance(to, str) else list(to)
     # AppleScript string literals: escape backslashes and quotes
     esc = lambda s: s.replace("\\", "\\\\").replace('"', '\\"')
+    recipient_lines = "\n            ".join(
+        f'make new to recipient at end of to recipients with properties {{address:"{esc(r)}"}}'
+        for r in recipients
+    )
     script = f'''
     tell application "Mail"
         set msg to make new outgoing message with properties {{subject:"{esc(subject)}", content:"{esc(body)}", visible:false}}
         tell msg
-            make new to recipient at end of to recipients with properties {{address:"{esc(to)}"}}
+            {recipient_lines}
         end tell
         send msg
     end tell
@@ -44,7 +49,7 @@ def send_email(cfg: Config, subject: str, body: str) -> None:
         time.sleep(5)
         try:
             _attempt_send(script)
-            print(f"  email sent to {to}: {subject}")
+            print(f"  email sent to {', '.join(recipients)}: {subject}")
             return
         except Exception as e:
             last_err = e
