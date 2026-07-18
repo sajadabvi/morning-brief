@@ -19,7 +19,7 @@ import pandas_market_calendars as mcal
 
 from .config import load_config
 from .state import RunState, run_stage
-from . import market, news, filter_stage, summarize, calendar_stage, digest, emailer
+from . import market, news, filter_stage, summarize, calendar_stage, digest, emailer, telegram
 
 
 def market_open_today(tz: str) -> bool:
@@ -52,6 +52,7 @@ def cmd_daily(args) -> int:
         return 0
 
     run_stage(state, "7-email", lambda: (emailer.send_email(cfg, mail["subject"], mail["body"]), {"sent": True})[1])
+    run_stage(state, "8-telegram", lambda: {"sent": telegram.send_telegram(cfg, mail["subject"], mail["body"])})
     return 0
 
 
@@ -73,6 +74,8 @@ def cmd_send_pending(args) -> int:
     mail = state.load("6-digest")
     emailer.send_email(cfg, mail["subject"], mail["body"])
     state.save("7-email", {"sent": True, "via": "send-pending"})
+    if not state.has("8-telegram"):
+        state.save("8-telegram", {"sent": telegram.send_telegram(cfg, mail["subject"], mail["body"])})
     return 0
 
 
@@ -84,13 +87,14 @@ def cmd_weekly(args) -> int:
         print(mail["subject"] + "\n\n" + mail["body"])
         return 0
     emailer.send_email(cfg, mail["subject"], mail["body"])
+    telegram.send_telegram(cfg, mail["subject"], mail["body"])
     return 0
 
 
 def cmd_status(args) -> int:
     cfg = load_config()
     state = RunState(cfg.state_dir, date.today(), cfg.get("keep_runs", 14))
-    stages = ["1-market", "2-news", "3-filter", "4-summarize", "5-calendar", "6-digest", "7-email"]
+    stages = ["1-market", "2-news", "3-filter", "4-summarize", "5-calendar", "6-digest", "7-email", "8-telegram"]
     for s in stages:
         print(f"  {'done   ' if state.has(s) else 'pending'}  {s}")
     return 0

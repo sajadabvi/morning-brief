@@ -10,6 +10,11 @@ email:
     - m.s.abavisani@gmail.com
   subject_prefix: "Morning Brief"
 
+# Also deliver the digest to Telegram (best-effort; email stays primary)
+telegram:
+  enabled: true
+  target: "8928049497"
+
 calendar:
   # Name of the calendar in macOS Calendar.app to write events into.
   # This is the synced Google calendar, so events appear on all devices.
