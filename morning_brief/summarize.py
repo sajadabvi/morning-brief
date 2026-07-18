@@ -21,6 +21,9 @@ Material news (already filtered for importance):
 Rules:
 - 2-4 sentences, max 90 words, plain factual prose.
 - Lead with what matters most today.
+- The price action line above is live, authoritative data. Articles may quote
+  stale prices or levels - never contradict the price line, and never
+  attribute today's move to dated filings or old reports.
 - No advice, no filler like "investors should watch".
 - If there is genuinely nothing notable, reply exactly: NOTHING NOTABLE
 
@@ -66,18 +69,34 @@ def summarize_all(cfg: Config, market: dict[str, Any], filtered: dict[str, Any])
 
     tickers = {}
     for h in cfg.holdings:
-        sector_news = filtered["per_sector"].get(h.sector, [])
-        articles = filtered["per_ticker"].get(h.ticker, []) + sector_news[:3]
+        # Company-direct articles only; sector context gets its own section
+        # in the digest instead of being repeated into every member's brief.
+        articles = filtered["per_ticker"].get(h.ticker, [])
         quote = market["stocks"].get(h.ticker)
-        # No material news and no significant move: nothing to write, and at
-        # 40 holdings skipping these writer calls is what keeps the run short.
-        if not articles and not (quote and quote["significant"]):
-            tickers[h.ticker] = ""
-            print(f"  {h.ticker}: quiet, skipped")
+        if not articles:
+            if quote and quote["significant"]:
+                # Honest one-liner beats a paragraph of adjacent noise.
+                tickers[h.ticker] = (
+                    f"Moved {quote['pct_change']:+.2f}% to {quote['last']:,.2f}; "
+                    "no company-specific news found."
+                )
+                print(f"  {h.ticker}: mover, no news (one-liner)")
+            else:
+                tickers[h.ticker] = ""
+                print(f"  {h.ticker}: quiet, skipped")
             continue
         brief = write(f"{h.company} ({h.ticker})", _price_line_stock(quote), articles)
         tickers[h.ticker] = brief
         print(f"  {h.ticker}: {'brief written' if brief else 'nothing notable'}")
+
+    sectors = {}
+    for sector, arts in filtered["per_sector"].items():
+        if not arts:
+            continue
+        brief = write(f"the {sector} sector", "(sector-level overview, no single quote)", arts)
+        if brief:
+            sectors[sector] = brief
+        print(f"  sector {sector}: {'brief written' if brief else 'nothing notable'}")
 
     macro = {}
     for q in market["macro"]:
@@ -90,4 +109,4 @@ def summarize_all(cfg: Config, market: dict[str, Any], filtered: dict[str, Any])
         macro[q["name"]] = brief
         print(f"  {q['name']}: {'brief written' if brief else 'nothing notable'}")
 
-    return {"tickers": tickers, "macro": macro}
+    return {"tickers": tickers, "macro": macro, "sectors": sectors}

@@ -63,59 +63,113 @@ def _write_para(cfg: Config, prompt_tpl: str, items: list[str]) -> str:
             "Key items this morning: " + "; ".join(items[:4]) + "."
 
 
-def compose_daily(cfg: Config, market: dict, summaries: dict, events_written: list) -> dict[str, str]:
+def compose_daily(
+    cfg: Config,
+    market: dict,
+    summaries: dict,
+    events_written: list,
+    filtered: dict | None = None,
+    today_events: list | None = None,
+) -> dict[str, str]:
     items = _significant_items(cfg, market, summaries)
     headline = _write_para(cfg, HEADLINE_PROMPT, items)
     closing = _write_para(cfg, CLOSING_PROMPT, items)
 
+    movers = sorted(
+        (
+            (h, market["stocks"][h.ticker])
+            for h in cfg.holdings
+            if h.ticker in market["stocks"] and market["stocks"][h.ticker]["significant"]
+        ),
+        key=lambda hq: -abs(hq[1]["pct_change"]),
+    )
+    subject = f"{cfg['email']['subject_prefix']} - {date.today():%a %b %-d}"
+    if movers:
+        subject += ": " + ", ".join(
+            f"{h.ticker} {q['pct_change']:+.1f}%" for h, q in movers[:3]
+        )
+
     lines: list[str] = [headline, ""]
 
-    lines.append("== Significant futures/price moves - portfolio ==")
+    lines.append("== Significant moves - portfolio ==")
     sig = [
-        f"  {h.ticker} ({h.company}): {market['stocks'][h.ticker]['pct_change']:+.2f}% "
-        f"(last {market['stocks'][h.ticker]['last']:,.2f})"
-        for h in cfg.holdings
-        if h.ticker in market["stocks"] and market["stocks"][h.ticker]["significant"]
+        f"  {h.ticker} ({h.company}): {q['pct_change']:+.2f}% (last {q['last']:,.2f})"
+        for h, q in movers
     ]
     lines += sig or ["  none"]
 
+    macro_sig_rows: list[str] = []
     for label, names in [
-        ("gold/silver", ["Gold", "Silver"]),
-        ("bond market", ["10Y Treasury yield"]),
+        ("Gold & silver", ["Gold", "Silver"]),
+        ("Bond market", ["10Y Treasury yield"]),
         ("Bitcoin", ["Bitcoin"]),
     ]:
-        lines.append(f"\n== Significant {label} moves ==")
         rows = [
             f"  {q['name']}: {price_line_macro(q)}"
             for q in market["macro"]
             if q["name"] in names and q["significant"]
         ]
-        lines += rows or ["  none"]
-        for name in names:
-            brief = summaries["macro"].get(name)
-            if brief:
-                lines.append(f"  {brief}")
+        macro_sig_rows += rows
+        briefs = [summaries["macro"].get(n) for n in names]
+        briefs = [b for b in briefs if b]
+        if not rows and not briefs:
+            continue
+        lines.append(f"\n== {label} ==")
+        lines += rows
+        lines += [f"  {b}" for b in briefs]
+
+    # Portfolio news, most important first: significant movers by size of
+    # move, then by the council's highest article importance, then CSV order.
+    def _rank(h) -> tuple:
+        q = market["stocks"].get(h.ticker)
+        move = abs(q["pct_change"]) if q and q["significant"] else 0.0
+        imp = max(
+            (a.get("importance", 0) for a in (filtered or {}).get("per_ticker", {}).get(h.ticker, [])),
+            default=0,
+        )
+        return (-move, -imp)
 
     lines.append("\n== Portfolio news ==")
-    any_news = False
-    for h in cfg.holdings:
-        brief = summaries["tickers"].get(h.ticker)
-        if brief:
-            any_news = True
-            lines.append(f"\n{h.ticker} - {h.company}")
-            lines.append(f"  {brief}")
-    if not any_news:
+    newsworthy = [h for h in cfg.holdings if summaries["tickers"].get(h.ticker)]
+    for h in sorted(newsworthy, key=_rank):
+        lines.append(f"\n{h.ticker} - {h.company}")
+        lines.append(f"  {summaries['tickers'][h.ticker]}")
+    if not newsworthy:
         lines.append("  Nothing material across the portfolio today.")
+
+    sectors = summaries.get("sectors") or {}
+    if sectors:
+        lines.append("\n== Sector notes ==")
+        for sector, brief in sectors.items():
+            lines.append(f"\n{sector}")
+            lines.append(f"  {brief}")
 
     if events_written:
         lines.append("\n== New calendar events added ==")
         lines += [f"  {ev['date']}: {ev['title']}" for ev in events_written]
 
+    today_lines = [f"  {ev['title']}" for ev in (today_events or [])]
+    if today_lines:
+        lines.append("\n== Today ==")
+        lines += today_lines
+
     lines += ["", "== Digest ==", closing]
 
+    # Short form for Telegram: headline, moves, today, closing - no briefs.
+    # (send_telegram prepends the subject line.)
+    tg = [headline, ""]
+    if sig:
+        tg += ["Portfolio movers:"] + sig
+    if macro_sig_rows:
+        tg += ["Macro movers:"] + macro_sig_rows
+    if today_lines:
+        tg += ["Today:"] + today_lines
+    tg += ["", closing]
+
     return {
-        "subject": f"{cfg['email']['subject_prefix']} - {date.today():%a %b %-d}",
+        "subject": subject,
         "body": "\n".join(lines),
+        "telegram": "\n".join(tg),
     }
 
 

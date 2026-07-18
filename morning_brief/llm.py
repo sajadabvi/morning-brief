@@ -50,6 +50,12 @@ def _parse_json(text: str) -> dict[str, Any] | None:
         return None
 
 
+JUDGE_RULES = """Strict rules:
+- Today is {today}. Stale/recycled content: if the article's substance concerns events, reports, or filings from weeks or months ago (even if republished with a fresh timestamp), set related=false.
+- Routine institutional position filings (13F stake changes) and small pre-planned insider trades: importance 2 at most.
+- Generic valuation listicles and "N stocks to buy/watch" pieces: importance 2 at most.
+- For commodity/macro subjects: regional exchange coverage (e.g., Indian MCX rupee prices) is importance 2 at most; only US/global benchmark moves matter."""
+
 JUDGE_PROMPT = """You are screening financial news for a portfolio digest about {subject}.
 
 Article title: {title}
@@ -59,15 +65,19 @@ Judge this article:
 1. related: is it actually about {subject} or something that materially affects it?
 2. importance: 1-5, where 1 = noise/routine, 3 = notable, 5 = major market-moving news.
 
+{rules}
+
 Answer with ONLY a JSON object, no other text:
 {{"related": true/false, "importance": 1-5, "reason": "<10 words max>"}}"""
 
 
 def judge_article(cfg: Config, model: str, subject: str, article: dict[str, Any]) -> dict[str, Any]:
+    from datetime import date
     prompt = JUDGE_PROMPT.format(
         subject=subject,
         title=article["title"],
         snippet=article["snippet"] or "(no snippet)",
+        rules=JUDGE_RULES.format(today=date.today().isoformat()),
     )
     try:
         verdict = _parse_json(ollama_chat(cfg, model, prompt))
@@ -95,6 +105,8 @@ For EACH article judge:
 - related: is it actually about {subject} or something that materially affects it?
 - importance: 1-5, where 1 = noise/routine, 3 = notable, 5 = major market-moving news.
 
+{rules}
+
 Answer with ONLY a JSON object, no other text:
 {{"verdicts": [{{"n": 1, "related": true/false, "importance": 1-5, "reason": "<10 words max>"}}, ...]}}"""
 
@@ -105,11 +117,15 @@ def _batch_judge(cfg: Config, subject: str, articles: list[dict[str, Any]]) -> l
     The batch is already capped (triage survivors, snippets trimmed), so the
     prompt stays a few KB regardless of the day's news volume.
     """
+    from datetime import date
     block = "\n".join(
         f"{i}. {a['title']} - {(a['snippet'] or '')[:200]}"
         for i, a in enumerate(articles, start=1)
     )
-    prompt = BATCH_JUDGE_PROMPT.format(subject=subject, articles=block)
+    prompt = BATCH_JUDGE_PROMPT.format(
+        subject=subject, articles=block,
+        rules=JUDGE_RULES.format(today=date.today().isoformat()),
+    )
     try:
         parsed = _parse_json(ollama_chat(cfg, cfg["llm"]["judge_model"], prompt))
         verdicts = {int(v["n"]): v for v in (parsed or {}).get("verdicts", [])}

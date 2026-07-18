@@ -45,14 +45,29 @@ def cmd_daily(args) -> int:
     briefs = run_stage(state, "4-summarize", lambda: summarize.summarize_all(cfg, market_data, filtered))
     events = run_stage(state, "5-calendar", lambda: calendar_stage.write_events(
         cfg, calendar_stage.extract_events(cfg, filtered)))
-    mail = run_stage(state, "6-digest", lambda: digest.compose_daily(cfg, market_data, briefs, events))
+
+    def _today_events():
+        try:
+            today = date.today().isoformat()
+            return [
+                {"date": d, "title": t}
+                for d, t in calendar_stage.existing_events(cfg)
+                if d == today
+            ]
+        except Exception as e:
+            print(f"  today-events lookup failed: {e}")
+            return []
+
+    mail = run_stage(state, "6-digest", lambda: digest.compose_daily(
+        cfg, market_data, briefs, events, filtered=filtered, today_events=_today_events()))
 
     if args.no_email:
         print("\n--- email preview ---\n" + mail["subject"] + "\n\n" + mail["body"])
         return 0
 
     run_stage(state, "7-email", lambda: (emailer.send_email(cfg, mail["subject"], mail["body"]), {"sent": True})[1])
-    run_stage(state, "8-telegram", lambda: {"sent": telegram.send_telegram(cfg, mail["subject"], mail["body"])})
+    run_stage(state, "8-telegram", lambda: {"sent": telegram.send_telegram(
+        cfg, mail["subject"], mail.get("telegram", mail["body"]))})
     return 0
 
 
@@ -75,7 +90,8 @@ def cmd_send_pending(args) -> int:
     emailer.send_email(cfg, mail["subject"], mail["body"])
     state.save("7-email", {"sent": True, "via": "send-pending"})
     if not state.has("8-telegram"):
-        state.save("8-telegram", {"sent": telegram.send_telegram(cfg, mail["subject"], mail["body"])})
+        state.save("8-telegram", {"sent": telegram.send_telegram(
+            cfg, mail["subject"], mail.get("telegram", mail["body"]))})
     return 0
 
 
