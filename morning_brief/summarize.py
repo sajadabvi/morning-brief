@@ -43,7 +43,8 @@ def _price_line_stock(q: dict[str, Any] | None) -> str:
     if not q:
         return "no quote available"
     flag = " (SIGNIFICANT)" if q["significant"] else ""
-    return f"{q['pct_change']:+.2f}% vs prev close, last {q['last']:,.2f}{flag}"
+    basis = q.get("basis", "last session")
+    return f"{q['pct_change']:+.2f}% ({basis}), last {q['last']:,.2f}{flag}"
 
 
 def price_line_macro(q: dict[str, Any]) -> str:
@@ -77,7 +78,8 @@ def summarize_all(cfg: Config, market: dict[str, Any], filtered: dict[str, Any])
             if quote and quote["significant"]:
                 # Honest one-liner beats a paragraph of adjacent noise.
                 tickers[h.ticker] = (
-                    f"Moved {quote['pct_change']:+.2f}% to {quote['last']:,.2f}; "
+                    f"Moved {quote['pct_change']:+.2f}% to {quote['last']:,.2f} "
+                    f"({quote.get('basis', 'last session')}); "
                     "no company-specific news found."
                 )
                 print(f"  {h.ticker}: mover, no news (one-liner)")

@@ -93,7 +93,8 @@ def compose_daily(
 
     lines.append("== Significant moves - portfolio ==")
     sig = [
-        f"  {h.ticker} ({h.company}): {q['pct_change']:+.2f}% (last {q['last']:,.2f})"
+        f"  {h.ticker} ({h.company}): {q['pct_change']:+.2f}% "
+        f"({q.get('basis', 'last session')}, last {q['last']:,.2f})"
         for h, q in movers
     ]
     lines += sig or ["  none"]
