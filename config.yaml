@@ -8,6 +8,7 @@ email:
   to:
     - joeyjohns0077@gmail.com
     - m.s.abavisani@gmail.com
+    - recrane@gmail.com
   subject_prefix: "Morning Brief"
 
 # Also deliver the digest to Telegram (best-effort; email stays primary)
