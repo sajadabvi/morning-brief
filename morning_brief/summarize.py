@@ -75,17 +75,11 @@ def summarize_all(cfg: Config, market: dict[str, Any], filtered: dict[str, Any])
         articles = filtered["per_ticker"].get(h.ticker, [])
         quote = market["stocks"].get(h.ticker)
         if not articles:
-            if quote and quote["significant"]:
-                # Honest one-liner beats a paragraph of adjacent noise.
-                tickers[h.ticker] = (
-                    f"Moved {quote['pct_change']:+.2f}% to {quote['last']:,.2f} "
-                    f"({quote.get('basis', 'last session')}); "
-                    "no company-specific news found."
-                )
-                print(f"  {h.ticker}: mover, no news (one-liner)")
-            else:
-                tickers[h.ticker] = ""
-                print(f"  {h.ticker}: quiet, skipped")
+            # No material news -> omit from Portfolio news entirely. A
+            # significant price move still appears in the deterministic
+            # "Significant moves" section at the top of the digest.
+            tickers[h.ticker] = ""
+            print(f"  {h.ticker}: no news, omitted from news section")
             continue
         brief = write(f"{h.company} ({h.ticker})", _price_line_stock(quote), articles)
         tickers[h.ticker] = brief
