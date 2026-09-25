@@ -24,6 +24,8 @@ Rules:
 - The price action line above is live, authoritative data. Articles may quote
   stale prices or levels - never contradict the price line, and never
   attribute today's move to dated filings or old reports.
+- If the price action says no pre-market quote is available, do not mention
+  any stock price, percentage move, or prior-session move.
 - No advice, no filler like "investors should watch".
 - If there is genuinely nothing notable, reply exactly: NOTHING NOTABLE
 
@@ -40,8 +42,8 @@ def _articles_block(articles: list[dict[str, Any]]) -> str:
 
 
 def _price_line_stock(q: dict[str, Any] | None) -> str:
-    if not q:
-        return "no quote available"
+    if not q or q.get("basis") != "pre-market":
+        return "no pre-market quote available; omit price action"
     flag = " (SIGNIFICANT)" if q["significant"] else ""
     basis = q.get("basis", "last session")
     return f"{q['pct_change']:+.2f}% ({basis}), last {q['last']:,.2f}{flag}"
@@ -51,7 +53,8 @@ def price_line_macro(q: dict[str, Any]) -> str:
     if "bp_change" in q:
         flag = " (SIGNIFICANT)" if q["significant"] else ""
         return f"{q['bp_change']:+.1f}bp, now {q['last']:.2f}%{flag}"
-    return _price_line_stock(q)
+    flag = " (SIGNIFICANT)" if q["significant"] else ""
+    return f"{q['pct_change']:+.2f}%, last {q['last']:,.2f}{flag}"
 
 
 def summarize_all(cfg: Config, market: dict[str, Any], filtered: dict[str, Any]) -> dict[str, Any]:

@@ -37,7 +37,7 @@ def _significant_items(cfg: Config, market: dict, summaries: dict) -> list[str]:
     items = []
     for h in cfg.holdings:
         q = market["stocks"].get(h.ticker)
-        if q and q["significant"]:
+        if q and q["significant"] and q.get("basis") == "pre-market":
             items.append(f"{h.ticker} moved {q['pct_change']:+.2f}%")
     for q in market["macro"]:
         if q["significant"]:
@@ -79,7 +79,9 @@ def compose_daily(
         (
             (h, market["stocks"][h.ticker])
             for h in cfg.holdings
-            if h.ticker in market["stocks"] and market["stocks"][h.ticker]["significant"]
+            if h.ticker in market["stocks"]
+            and market["stocks"][h.ticker]["significant"]
+            and market["stocks"][h.ticker].get("basis") == "pre-market"
         ),
         key=lambda hq: -abs(hq[1]["pct_change"]),
     )
@@ -91,7 +93,7 @@ def compose_daily(
 
     lines: list[str] = [headline, ""]
 
-    lines.append("== Significant moves - portfolio ==")
+    lines.append("== Significant pre-market moves - portfolio ==")
     sig = [
         f"  {h.ticker} ({h.company}): {q['pct_change']:+.2f}% "
         f"({q.get('basis', 'last session')}, last {q['last']:,.2f})"

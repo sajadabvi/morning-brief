@@ -2,8 +2,10 @@
 
 Automated weekday portfolio research digest, fully on-device:
 
-- **Market data** (yfinance, keyless): portfolio quotes plus Gold, Silver, the
-  10Y Treasury yield, and Bitcoin, with configurable significant-move thresholds.
+- **Market data** (yfinance, keyless): genuine pre-market portfolio quotes plus
+  Gold, Silver, the 10Y Treasury yield, and Bitcoin, with configurable
+  significant-move thresholds. Stocks without a pre-market trade are omitted
+  from price and mover reporting rather than showing the prior session.
 - **News** (Google News RSS, keyless): per-stock direct mentions, sector news,
   macro-asset news, and market-wide headlines.
 - **Local LLM council filtering**: every article is judged twice — triaged by a
